@@ -7,6 +7,7 @@ interface CreateApplicationRequest {
   date?: string;
   resumePaths?: string[];
   attachmentPaths?: string[];
+  coverLetterText?: string;
 }
 
 @Controller('applications')

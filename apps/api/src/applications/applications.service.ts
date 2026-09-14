@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { mkdir, readdir, stat } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { ScriptRunnerService } from '../scripts/script-runner.service';
 
@@ -11,6 +13,7 @@ interface CreateApplicationInput {
   date?: string;
   resumePaths?: string[];
   attachmentPaths?: string[];
+  coverLetterText?: string;
 }
 
 export interface ApplicationSummary {
@@ -39,6 +42,18 @@ export class ApplicationsService {
       join(SCRIPTS_DIR, 'setup_bewerbungsordner.py'),
       args,
     );
+
+    if (input.coverLetterText?.trim()) {
+      const textPath = join(tmpdir(), `anschreiben-${randomUUID()}.txt`);
+      await writeFile(textPath, input.coverLetterText, 'utf-8');
+      await this.scriptRunner.run(join(SCRIPTS_DIR, 'erstelle_anschreiben_pdf.py'), [
+        '--text',
+        textPath,
+        '--ausgabe',
+        join(path, 'Anschreiben.pdf'),
+      ]);
+    }
+
     return { path };
   }
 
