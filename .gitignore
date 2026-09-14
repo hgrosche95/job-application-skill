@@ -3,6 +3,7 @@ dist/
 .env
 .env.*
 !.env.example
+apps/api/data/
 
 # Python (bewerbungshelfer/scripts)
 __pycache__/
