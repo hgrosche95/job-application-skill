@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
-import { LlmCompleteOptions, LlmProvider } from './llm-provider.interface';
+import { LlmCompleteOptions, LlmCompleteResult, LlmProvider } from './llm-provider.interface';
 
 @Injectable()
 export class AnthropicProvider implements LlmProvider {
@@ -10,7 +10,7 @@ export class AnthropicProvider implements LlmProvider {
     systemPrompt: string,
     userPrompt: string,
     options: LlmCompleteOptions = {},
-  ): Promise<string> {
+  ): Promise<LlmCompleteResult> {
     const model = process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5';
 
     const response = await this.client.messages.create({
@@ -24,6 +24,13 @@ export class AnthropicProvider implements LlmProvider {
     const textBlock = response.content.find(
       (block): block is Anthropic.TextBlock => block.type === 'text',
     );
-    return textBlock?.text ?? '';
+    return {
+      text: textBlock?.text ?? '',
+      model: response.model,
+      usage: {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      },
+    };
   }
 }

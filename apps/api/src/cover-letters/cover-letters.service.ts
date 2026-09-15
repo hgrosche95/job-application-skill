@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { startActiveObservation } from '@langfuse/tracing';
 import { LLM_PROVIDER } from '../llm/llm-provider.interface';
 import type { LlmProvider } from '../llm/llm-provider.interface';
 
@@ -58,10 +59,33 @@ export class CoverLettersService {
       ? `Stellenanzeige:\n${input.postingText}\n\nLebenslauf:\n${input.resumeText}\n\nName des Bewerbers: ${input.applicantName}\n\nBisheriger Entwurf:\n${input.previousDraft}\n\nGewünschte Änderungen:\n${input.feedback ?? '(keine Angabe, allgemein verbessern)'}\n\nÜberarbeite den Entwurf entsprechend.`
       : `Stellenanzeige:\n${input.postingText}\n\nLebenslauf:\n${input.resumeText}\n\nName des Bewerbers: ${input.applicantName}`;
 
-    const text = await this.llm.complete(SYSTEM_PROMPT, userPrompt, {
-      temperature: 0,
-      maxTokens: 1024,
-    });
-    return { text: text.trim() };
+    // Getraced wird nur die Form des Laufs (Modell, Token-Zahlen, Wortzahl
+    // des Entwurfs) - niemals der tatsächliche Anzeigen-, Lebenslauf- oder
+    // Anschreiben-Text, siehe Begründung in job-postings.service.ts.
+    return startActiveObservation(
+      'draft-cover-letter',
+      async (generation) => {
+        const result = await this.llm.complete(SYSTEM_PROMPT, userPrompt, {
+          temperature: 0,
+          maxTokens: 1024,
+        });
+        const text = result.text.trim();
+
+        generation.update({
+          model: result.model,
+          usageDetails: {
+            input: result.usage.inputTokens,
+            output: result.usage.outputTokens,
+          },
+          metadata: {
+            wordCount: text.split(/\s+/).filter(Boolean).length,
+            isRevision: Boolean(input.previousDraft),
+          },
+        });
+
+        return { text };
+      },
+      { asType: 'generation' },
+    );
   }
 }

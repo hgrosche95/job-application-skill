@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
 } from '@nestjs/common';
+import { startActiveObservation } from '@langfuse/tracing';
 import { LLM_PROVIDER } from '../llm/llm-provider.interface';
 import type { LlmProvider } from '../llm/llm-provider.interface';
 
@@ -49,16 +50,43 @@ export class JobPostingsService {
     }
 
     const userPrompt = `Stellenanzeige:\n${input.postingText}\n\nLebenslauf:\n${input.resumeText}`;
-    const raw = await this.llm.complete(SYSTEM_PROMPT, userPrompt, {
-      temperature: 0,
-    });
 
-    try {
-      return JSON.parse(stripMarkdownFence(raw)) as JobPostingMatch;
-    } catch {
-      throw new BadGatewayException(
-        'LLM-Antwort ließ sich nicht als JSON parsen',
-      );
-    }
+    // Getraced wird nur die Form des Laufs (Modell, Token-Zahlen, wie viele
+    // Anforderungen erfüllt wurden) - niemals der tatsächliche Anzeigen-
+    // oder Lebenslauf-Text, siehe ai-trip-planer-README "Was bewusst nicht
+    // getraced wird". Beides sind bei diesem Skill potenziell sensible
+    // Bewerbungsdaten, nicht bloß Reisepräferenzen wie im Vorbild.
+    return startActiveObservation(
+      'match-job-posting',
+      async (generation) => {
+        const result = await this.llm.complete(SYSTEM_PROMPT, userPrompt, {
+          temperature: 0,
+        });
+
+        let match: JobPostingMatch;
+        try {
+          match = JSON.parse(stripMarkdownFence(result.text)) as JobPostingMatch;
+        } catch {
+          throw new BadGatewayException(
+            'LLM-Antwort ließ sich nicht als JSON parsen',
+          );
+        }
+
+        generation.update({
+          model: result.model,
+          usageDetails: {
+            input: result.usage.inputTokens,
+            output: result.usage.outputTokens,
+          },
+          metadata: {
+            requirementsTotal: match.requirements.length,
+            requirementsMatched: match.requirements.filter((r) => r.matched).length,
+          },
+        });
+
+        return match;
+      },
+      { asType: 'generation' },
+    );
   }
 }

@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { LlmCompleteOptions, LlmProvider } from './llm-provider.interface';
+import { LlmCompleteOptions, LlmCompleteResult, LlmProvider } from './llm-provider.interface';
 
 const DEFAULT_MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
@@ -50,7 +50,7 @@ export class RetryingLlmProvider implements LlmProvider {
     systemPrompt: string,
     userPrompt: string,
     options?: LlmCompleteOptions,
-  ): Promise<string> {
+  ): Promise<LlmCompleteResult> {
     let attempt = 0;
     for (;;) {
       try {

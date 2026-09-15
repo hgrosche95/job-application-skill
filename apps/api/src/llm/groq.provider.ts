@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
-import { LlmCompleteOptions, LlmProvider } from './llm-provider.interface';
+import { LlmCompleteOptions, LlmCompleteResult, LlmProvider } from './llm-provider.interface';
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 
@@ -15,7 +15,7 @@ export class GroqProvider implements LlmProvider {
     systemPrompt: string,
     userPrompt: string,
     options: LlmCompleteOptions = {},
-  ): Promise<string> {
+  ): Promise<LlmCompleteResult> {
     const model = process.env.GROQ_MODEL ?? 'openai/gpt-oss-120b';
 
     const response = await this.client.chat.completions.create({
@@ -28,6 +28,13 @@ export class GroqProvider implements LlmProvider {
       ],
     });
 
-    return response.choices[0].message.content ?? '';
+    return {
+      text: response.choices[0].message.content ?? '',
+      model: response.model,
+      usage: {
+        inputTokens: response.usage?.prompt_tokens ?? 0,
+        outputTokens: response.usage?.completion_tokens ?? 0,
+      },
+    };
   }
 }
