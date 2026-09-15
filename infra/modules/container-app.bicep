@@ -39,9 +39,9 @@ param jwtSecret string
 @secure()
 param groqApiKey string
 
-@description('Anthropic-API-Key fürs Backend (Fallback-Provider, siehe LLM_PROVIDER).')
+@description('Anthropic-API-Key fürs Backend (Fallback-Provider, siehe LLM_PROVIDER). Optional: leer lassen lässt den Fallback-Provider unkonfiguriert, LLM_PROVIDER bleibt auf groq.')
 @secure()
-param anthropicApiKey string
+param anthropicApiKey string = ''
 
 @description('Langfuse Secret Key - dasselbe geteilte Langfuse-Projekt wie ai-trip-planer (Phase 4). Optional: leer lassen deaktiviert Tracing sauber, siehe tracing.ts.')
 @secure()
@@ -62,6 +62,25 @@ param maxReplicas int = 3
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
   name: logAnalyticsWorkspaceName
 }
+
+// Container Apps lehnt ein Secret mit leerem Wert hart ab
+// ("value or keyVaultUrl and identity should be provided") - anthropicApiKey
+// und langfuseSecretKey sind aber echt optional (Fallback-Provider bzw.
+// Tracing). Secret+Env-Eintrag deshalb nur anlegen, wenn ein Wert da ist,
+// statt einen Platzhalter-Wert zu erfinden, nur um die Validierung zu
+// erfüllen.
+var optionalSecrets = concat(
+  !empty(anthropicApiKey) ? [{ name: 'anthropic-api-key', value: anthropicApiKey }] : [],
+  !empty(langfuseSecretKey) ? [{ name: 'langfuse-secret-key', value: langfuseSecretKey }] : []
+)
+var optionalEnv = concat(
+  !empty(anthropicApiKey) ? [{ name: 'ANTHROPIC_API_KEY', secretRef: 'anthropic-api-key' }] : [],
+  !empty(langfuseSecretKey) ? [
+    { name: 'LANGFUSE_SECRET_KEY', secretRef: 'langfuse-secret-key' }
+    { name: 'LANGFUSE_PUBLIC_KEY', value: langfusePublicKey }
+    { name: 'LANGFUSE_BASE_URL', value: langfuseBaseUrl }
+  ] : []
+)
 
 // Eigene Container-Apps-Environment statt die von ai-trip-planer
 // mitzunutzen - bewusste Entscheidung (siehe infra/README.md): beide
@@ -100,15 +119,13 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           passwordSecretRef: 'registry-password'
         }
       ]
-      secrets: [
+      secrets: concat([
         { name: 'registry-password', value: registryPassword }
         { name: 'auth-password-hash', value: authPasswordHash }
         { name: 'jwt-secret', value: jwtSecret }
         { name: 'groq-api-key', value: groqApiKey }
-        { name: 'anthropic-api-key', value: anthropicApiKey }
         { name: 'appinsights-connection-string', value: appInsightsConnectionString }
-        { name: 'langfuse-secret-key', value: langfuseSecretKey }
-      ]
+      ], optionalSecrets)
     }
     template: {
       containers: [
@@ -120,7 +137,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json('0.25')
             memory: '0.5Gi'
           }
-          env: [
+          env: concat([
             { name: 'PORT', value: '3000' }
             // node:20-slim/Debian hat kein "python"-Symlink, nur "python3"
             // (siehe apps/api/Dockerfile) - abweichend vom lokalen
@@ -131,15 +148,11 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'JWT_SECRET', secretRef: 'jwt-secret' }
             { name: 'LLM_PROVIDER', value: 'groq' }
             { name: 'GROQ_API_KEY', secretRef: 'groq-api-key' }
-            { name: 'ANTHROPIC_API_KEY', secretRef: 'anthropic-api-key' }
             {
               name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
               secretRef: 'appinsights-connection-string'
             }
-            { name: 'LANGFUSE_SECRET_KEY', secretRef: 'langfuse-secret-key' }
-            { name: 'LANGFUSE_PUBLIC_KEY', value: langfusePublicKey }
-            { name: 'LANGFUSE_BASE_URL', value: langfuseBaseUrl }
-          ]
+          ], optionalEnv)
         }
       ]
       scale: {
