@@ -2,8 +2,14 @@
 
 Claude Agent Skill, der beim Erstellen von Bewerbungsunterlagen hilft: liest Lebenslauf und
 Stellenanzeige, entwirft im Dialog ein individuelles Anschreiben und legt nach Bestätigung
-einen fertigen Bewerbungsordner an. Läuft vollständig innerhalb der Claude-Session des
-jeweiligen Nutzers — keine eigene API-Anbindung, keine fest einprogrammierten persönlichen Daten.
+einen fertigen Bewerbungsordner an. Läuft als Skill vollständig innerhalb der Claude-Session
+des jeweiligen Nutzers — keine fest einprogrammierten persönlichen Daten, keine gespeicherten
+API-Keys.
+
+Dieselben drei Python-Scripts (`scripts/`) werden mittlerweile auch von `apps/api` aufgerufen,
+das die Kernfähigkeiten zusätzlich als REST-API und MCP-Server bereitstellt (nutzbar aus Claude
+Desktop, n8n oder anderen Clients) — siehe [`../apps/api`](../apps/api). Dieser Skill-Ordner
+selbst bleibt davon unberührt und funktioniert weiterhin eigenständig.
 
 ## Installation
 1. Diesen Ordner (`bewerbungshelfer/`) nach `.claude/skills/bewerbungshelfer/` (projektweit)
