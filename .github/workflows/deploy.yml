@@ -1,0 +1,98 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# id-token: write ermöglicht den OIDC-Login gegen Azure (azure/login tauscht das
+# GitHub-OIDC-Token gegen ein kurzlebiges Azure-Access-Token, ohne dass irgendwo ein
+# langlebiger Client-Secret-Key als GitHub-Secret liegen muss).
+# packages: write wird für den Push des Backend-Images nach GHCR gebraucht.
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+env:
+  AZURE_RESOURCE_GROUP: job-application-skill-dev-rg
+  AZURE_LOCATION: germanywestcentral
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/job-application-skill-api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- 1. Backend-Image bauen und nach GHCR pushen ---------------------------------
+      # Muss VOR dem Bicep-Deployment passieren: die Container App referenziert das
+      # Image über seinen Tag. Würde der Tag beim Deployment noch nicht existieren,
+      # würde die neue Revision beim Start fehlschlagen (Image-Pull-Error).
+      - name: In GitHub Container Registry einloggen
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Backend-Image bauen und pushen
+        run: |
+          IMAGE_TAG="${IMAGE_NAME,,}:${{ github.sha }}"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          docker build -f apps/api/Dockerfile -t "$IMAGE_TAG" .
+          docker push "$IMAGE_TAG"
+
+      # --- 2. Bei Azure einloggen (OIDC / Federated Credentials) -----------------------
+      - name: Bei Azure einloggen
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resource Group sicherstellen
+        run: |
+          az group create \
+            --name "$AZURE_RESOURCE_GROUP" \
+            --location "$AZURE_LOCATION" \
+            --output none
+
+      # --- 3. Infrastruktur deployen (Bicep) --------------------------------------------
+      # Secrets kommen über env: rein statt direkt per ${{ }} in den Bash-Befehl
+      # interpoliert zu werden - derselbe Grund wie im ai-trip-planer-Vorbild: ein
+      # bcrypt-Hash-Wert fängt mit "$2b$" an, direkt in doppelten Anführungszeichen
+      # interpoliert würde Bash das als (leere) Variable auflösen.
+      - name: Infrastruktur deployen
+        id: infra
+        env:
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+          AUTH_USERNAME: ${{ secrets.AUTH_USERNAME }}
+          AUTH_PASSWORD_HASH: ${{ secrets.AUTH_PASSWORD_HASH }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+        run: |
+          OUTPUTS=$(az deployment group create \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --template-file infra/main.bicep \
+            --parameters infra/main.parameters.json \
+            --parameters \
+              containerImage="$IMAGE_TAG" \
+              registryUsername="${{ github.actor }}" \
+              registryPassword="$GHCR_PAT" \
+              authUsername="$AUTH_USERNAME" \
+              authPasswordHash="$AUTH_PASSWORD_HASH" \
+              jwtSecret="$JWT_SECRET" \
+              groqApiKey="$GROQ_API_KEY" \
+              anthropicApiKey="$ANTHROPIC_API_KEY" \
+              langfuseSecretKey="$LANGFUSE_SECRET_KEY" \
+              langfusePublicKey="$LANGFUSE_PUBLIC_KEY" \
+            --query properties.outputs -o json)
+
+          echo "container_app_url=$(echo "$OUTPUTS" | jq -r '.containerAppUrl.value')" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy-URL ausgeben
+        run: echo "Deployed to ${{ steps.infra.outputs.container_app_url }}"
