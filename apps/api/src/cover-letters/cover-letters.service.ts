@@ -37,14 +37,48 @@ Antworte AUSSCHLIESSLICH mit dem fertigen Anschreiben-Text (kein Markdown, keine
 // Technologie-Erfindungen (z.B. nicht im Lebenslauf erwähnte Datenbanken)
 // verhindert die Regel oben zuverlässig, plausibel klingende erfundene
 // Kennzahlen ("30% schnellere Antwortzeiten") aber nicht immer. Prompt-
-// Engineering allein löst das nicht vollständig - das ist strukturell genau
-// das Problem, für das Phase 5 (LangGraph-Validierungs-Loop) gedacht ist.
+// Engineering allein löst das nicht vollständig - dafür der Validierungs-
+// Loop unten (Phase 5, Muster aus agentic-rogue-like/encounter_agent.py:
+// generieren -> deterministisch validieren -> bei Verstoß mit dem
+// konkreten Fehler im Prompt erneut, gedeckelt).
+
+const MAX_ATTEMPTS = 3;
+const MIN_WORDS = 250;
+const MAX_WORDS = 400;
+// 1:1 die "Vermeiden"-Liste aus dem System-Prompt oben - die LLM hält sich
+// nicht zuverlässig selbst daran (siehe Phase 1d), das hier ist der
+// deterministische Nachprüf-Schritt dafür.
+const FORBIDDEN_PHRASES = ['teamplayer', 'hoch motiviert', 'leidenschaft'];
+
+function countWords(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length;
+}
+
+/** null = valide. Sonst der Grund, der als Korrektur-Hinweis in den nächsten Prompt fließt. */
+function validateDraft(text: string): string | null {
+  const wordCount = countWords(text);
+  if (wordCount < MIN_WORDS || wordCount > MAX_WORDS) {
+    return `Der Text hat ${wordCount} Wörter, gefordert sind ${MIN_WORDS}-${MAX_WORDS}.`;
+  }
+  const lower = text.toLowerCase();
+  const foundPhrase = FORBIDDEN_PHRASES.find((phrase) => lower.includes(phrase));
+  if (foundPhrase) {
+    return `Der Text enthält die zu vermeidende Floskel "${foundPhrase}".`;
+  }
+  return null;
+}
+
+export interface DraftCoverLetterResult {
+  text: string;
+  validationPassed: boolean;
+  attempts: number;
+}
 
 @Injectable()
 export class CoverLettersService {
   constructor(@Inject(LLM_PROVIDER) private readonly llm: LlmProvider) {}
 
-  async draft(input: DraftCoverLetterInput): Promise<{ text: string }> {
+  async draft(input: DraftCoverLetterInput): Promise<DraftCoverLetterResult> {
     if (
       !input?.postingText?.trim() ||
       !input?.resumeText?.trim() ||
@@ -55,37 +89,62 @@ export class CoverLettersService {
       );
     }
 
-    const userPrompt = input.previousDraft
+    const baseUserPrompt = input.previousDraft
       ? `Stellenanzeige:\n${input.postingText}\n\nLebenslauf:\n${input.resumeText}\n\nName des Bewerbers: ${input.applicantName}\n\nBisheriger Entwurf:\n${input.previousDraft}\n\nGewünschte Änderungen:\n${input.feedback ?? '(keine Angabe, allgemein verbessern)'}\n\nÜberarbeite den Entwurf entsprechend.`
       : `Stellenanzeige:\n${input.postingText}\n\nLebenslauf:\n${input.resumeText}\n\nName des Bewerbers: ${input.applicantName}`;
 
-    // Getraced wird nur die Form des Laufs (Modell, Token-Zahlen, Wortzahl
-    // des Entwurfs) - niemals der tatsächliche Anzeigen-, Lebenslauf- oder
-    // Anschreiben-Text, siehe Begründung in job-postings.service.ts.
-    return startActiveObservation(
-      'draft-cover-letter',
-      async (generation) => {
-        const result = await this.llm.complete(SYSTEM_PROMPT, userPrompt, {
-          temperature: 0,
-          maxTokens: 1024,
-        });
-        const text = result.text.trim();
+    // Getraced wird nur die Form des Laufs (Modell, Token-Zahlen, Wortzahl,
+    // Anzahl Versuche) - niemals der tatsächliche Anzeigen-, Lebenslauf-
+    // oder Anschreiben-Text, siehe Begründung in job-postings.service.ts.
+    return startActiveObservation('draft-cover-letter', async (span) => {
+      let text = '';
+      let validationError: string | null = null;
+      let attempt = 0;
 
-        generation.update({
-          model: result.model,
-          usageDetails: {
-            input: result.usage.inputTokens,
-            output: result.usage.outputTokens,
-          },
-          metadata: {
-            wordCount: text.split(/\s+/).filter(Boolean).length,
-            isRevision: Boolean(input.previousDraft),
-          },
-        });
+      for (attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        const userPrompt = validationError
+          ? `${baseUserPrompt}\n\nDein vorheriger Entwurf wurde abgelehnt: ${validationError} Erstelle einen neuen Entwurf, der das behebt.`
+          : baseUserPrompt;
 
-        return { text };
-      },
-      { asType: 'generation' },
-    );
+        text = await startActiveObservation(
+          `generate-draft-attempt-${attempt}`,
+          async (generation) => {
+            const result = await this.llm.complete(SYSTEM_PROMPT, userPrompt, {
+              temperature: 0,
+              maxTokens: 1024,
+            });
+            const attemptText = result.text.trim();
+            generation.update({
+              model: result.model,
+              usageDetails: {
+                input: result.usage.inputTokens,
+                output: result.usage.outputTokens,
+              },
+              metadata: { wordCount: countWords(attemptText) },
+            });
+            return attemptText;
+          },
+          { asType: 'generation' },
+        );
+
+        validationError = validateDraft(text);
+        if (!validationError) break;
+      }
+
+      span.update({
+        metadata: {
+          isRevision: Boolean(input.previousDraft),
+          attempts: attempt > MAX_ATTEMPTS ? MAX_ATTEMPTS : attempt,
+          validationPassed: validationError === null,
+          finalValidationError: validationError,
+        },
+      });
+
+      return {
+        text,
+        validationPassed: validationError === null,
+        attempts: attempt > MAX_ATTEMPTS ? MAX_ATTEMPTS : attempt,
+      };
+    });
   }
 }
