@@ -43,7 +43,7 @@ param groqApiKey string
 @secure()
 param anthropicApiKey string = ''
 
-@description('Langfuse Secret Key - dasselbe geteilte Langfuse-Projekt wie ai-trip-planer (Phase 4). Optional: leer lassen deaktiviert Tracing sauber, siehe tracing.ts.')
+@description('Langfuse Secret Key - dasselbe geteilte Langfuse-Projekt wie ai-trip-planer. Optional: leer lassen deaktiviert Tracing sauber, siehe tracing.ts.')
 @secure()
 param langfuseSecretKey string = ''
 

@@ -37,16 +37,18 @@ Antworte AUSSCHLIESSLICH mit dem fertigen Anschreiben-Text (kein Markdown, keine
 // Technologie-Erfindungen (z.B. nicht im Lebenslauf erwähnte Datenbanken)
 // verhindert die Regel oben zuverlässig, plausibel klingende erfundene
 // Kennzahlen ("30% schnellere Antwortzeiten") aber nicht immer. Prompt-
-// Engineering allein löst das nicht vollständig - dafür der Validierungs-
-// Loop unten (Phase 5, Muster aus agentic-rogue-like/encounter_agent.py:
-// generieren -> deterministisch validieren -> bei Verstoß mit dem
-// konkreten Fehler im Prompt erneut, gedeckelt).
+// Engineering allein löst das nicht vollständig. Der Validierungs-Loop unten
+// (Muster aus agentic-rogue-like/encounter_agent.py: generieren ->
+// deterministisch validieren -> bei Verstoß mit dem konkreten Fehler im
+// Prompt erneut, gedeckelt) prüft bisher nur Länge und Floskeln; erfundene
+// Zahlen fängt er noch nicht ab. Dafür fehlt ein Abgleich jeder Zahl im
+// Entwurf gegen den Lebenslauf.
 
 const MAX_ATTEMPTS = 3;
 const MIN_WORDS = 250;
 const MAX_WORDS = 400;
-// 1:1 die "Vermeiden"-Liste aus dem System-Prompt oben - die LLM hält sich
-// nicht zuverlässig selbst daran (siehe Phase 1d), das hier ist der
+// 1:1 die "Vermeiden"-Liste aus dem System-Prompt oben - das Modell hält sich
+// beim Testen nicht zuverlässig selbst daran, das hier ist der
 // deterministische Nachprüf-Schritt dafür.
 const FORBIDDEN_PHRASES = ['teamplayer', 'hoch motiviert', 'leidenschaft'];
 

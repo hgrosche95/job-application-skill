@@ -19,8 +19,8 @@ export interface LlmCompleteResult {
  * (apps/api/src/llm/llm-provider.interface.ts dort): dieses Projekt braucht
  * kein Tool-Calling, nur einen einzelnen System-/User-Prompt-Aufruf - für
  * match_job_posting und draft_cover_letter reicht das. model/usage sind
- * trotzdem Teil des Ergebnisses (nicht nur der Text) - Phase 4 braucht sie
- * fürs Langfuse-Tracing (siehe job-postings.service.ts/cover-letters.service.ts).
+ * trotzdem Teil des Ergebnisses (nicht nur der Text), weil das Langfuse-
+ * Tracing sie braucht (siehe job-postings.service.ts/cover-letters.service.ts).
  */
 export interface LlmProvider {
   complete(
