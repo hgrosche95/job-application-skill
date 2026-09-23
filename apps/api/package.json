@@ -6,7 +6,8 @@
     "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "start:prod": "node dist/main"
+    "start:prod": "node dist/main",
+    "test": "jest"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
@@ -33,8 +34,24 @@
     "@nestjs/schematics": "^11.0.0",
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
     "@types/passport-jwt": "^4.0.1",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.4.13",
     "typescript": "^5.7.3"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "testEnvironment": "node"
   }
 }
