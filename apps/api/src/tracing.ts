@@ -2,10 +2,9 @@ import * as appInsights from 'applicationinsights';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { LangfuseSpanProcessor } from '@langfuse/otel';
 
-// 1:1 aus ai-trip-planer/apps/api/src/tracing.ts übernommen. Der
-// applicationinsights-Teil war in Phase 4 noch auskommentiert ("kein
-// Azure-Deployment vorhanden") - seit Phase 6 (infra/modules/container-app.bicep
-// provisioniert eine App-Insights-Ressource) ist er es wieder.
+// 1:1 aus ai-trip-planer/apps/api/src/tracing.ts übernommen. Application
+// Insights ist nur aktiv, wenn die Connection-String-Variable gesetzt ist
+// (in Azure provisioniert infra/modules/container-app.bicep die Ressource).
 if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
   appInsights
     .setup()
