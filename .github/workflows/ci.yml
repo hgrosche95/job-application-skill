@@ -1,10 +1,7 @@
 name: CI
 
-# Bewusst nur ein Build-Check (kein lint/test wie im ai-trip-planer-Vorbild):
-# job-application-skill hat aktuell weder ESLint-Konfiguration noch Tests -
-# ein 1:1-kopiertes ci.yml würde hier sofort an fehlenden npm-Scripts
-# scheitern. Lieber ein kleiner, ehrlicher Check, der tatsächlich etwas
-# prüft, als ein größerer, der nur simuliert vorhandene Qualitätssicherung.
+# Build + Unit-Tests. Noch ohne Lint: es gibt keine ESLint-Konfiguration,
+# ein kopiertes Lint-Skript würde nur simulierte Qualitätssicherung sein.
 on:
   push:
     branches: [main]
@@ -18,8 +15,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - run: npm ci
       - run: npm run build
+      - run: npm test
