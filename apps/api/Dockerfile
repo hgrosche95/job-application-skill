@@ -2,7 +2,7 @@
 
 # ---- deps: install workspace dependencies (npm needs every workspace's package.json
 # to resolve the root package-lock.json, even though we only ship apps/api) ----
-FROM node:20-slim AS deps
+FROM node:24-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
@@ -22,13 +22,13 @@ RUN npm prune --omit=dev
 
 # ---- runtime: Node für die API + Python für die Bewerbungshelfer-Scripts
 # (erstelle_lebenslauf.py/setup_bewerbungsordner.py/erstelle_anschreiben_pdf.py,
-# aufgerufen über scripts/script-runner.service.ts) - node:20-slim ist
+# aufgerufen über scripts/script-runner.service.ts) - node:24-slim ist
 # Debian-basiert, python3/pip kommen per apt dazu statt ein zweites
 # Basis-Image zu brauchen. --break-system-packages: PEP 668 verbietet
 # pip-Installs ins System-Python, in einem Container ohne konkurrierende
 # Host-Python-Umgebung ist der Grund dafür (Konflikte mit anderen Tools)
 # irrelevant.
-FROM node:20-slim AS runtime
+FROM node:24-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app/apps/api
 
