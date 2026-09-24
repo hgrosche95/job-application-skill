@@ -39,7 +39,7 @@
     "@types/passport-jwt": "^4.0.1",
     "jest": "^30.5.2",
     "ts-jest": "^29.4.13",
-    "typescript": "^5.7.3"
+    "typescript": "^7.0.2"
   },
   "jest": {
     "moduleFileExtensions": [
