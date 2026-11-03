@@ -28,7 +28,9 @@ env:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # Fest auf 24.04: Seit ubuntu-latest auf 26.04 zeigt, startet die neue
+    # Container-App-Revision nicht mehr (Unhealthy/Failed).
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -47,7 +49,7 @@ jobs:
         run: |
           IMAGE_TAG="${IMAGE_NAME,,}:${{ github.sha }}"
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
-          docker build -f apps/api/Dockerfile -t "$IMAGE_TAG" .
+          docker build --provenance=false --sbom=false -f apps/api/Dockerfile -t "$IMAGE_TAG" .
           docker push "$IMAGE_TAG"
 
       # --- 2. Bei Azure einloggen (OIDC / Federated Credentials) -----------------------
