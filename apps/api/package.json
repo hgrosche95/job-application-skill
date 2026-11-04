@@ -12,7 +12,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",
     "@langfuse/otel": "^5.11.0",
-    "@langfuse/tracing": "^5.11.0",
+    "@langfuse/tracing": "^6.1.0",
     "@nestjs/common": "^11.2.8",
     "@nestjs/core": "^11.2.8",
     "@nestjs/jwt": "^11.0.2",
