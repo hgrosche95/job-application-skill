@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",
-    "@langfuse/otel": "^5.11.0",
+    "@langfuse/otel": "^6.1.1",
     "@langfuse/tracing": "^5.11.0",
     "@nestjs/common": "^11.2.10",
     "@nestjs/core": "^11.2.10",
